@@ -1,0 +1,1323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>Card Sorting AI Trainer</title>
+  <style>
+    /* Reset and zero-scrollbar mobile lock */
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: #0f172a;
+      color: #f8fafc;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+    }
+
+    /* Top-aligned normal document flow so tall Google Sites iframes never hide content */
+    #app {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      justify-content: flex-start;
+      width: 100%;
+      padding: 8px 0 12px 0;
+      background: #0f172a;
+    }
+
+    /* 1. Compact Header Bar (~42px) */
+    #header-bar {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 6px 10px;
+      min-height: 42px;
+      background: #0b1120;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    #hand-title {
+      font-size: 15px;
+      font-weight: 800;
+      color: #ffffff;
+      letter-spacing: -0.01em;
+      white-space: nowrap;
+    }
+
+    /* Double-tappable green saved-hands pill */
+    #saved-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 3px 9px;
+      border-radius: 9999px;
+      background: #065f46;
+      color: #6ee7b7;
+      border: 1px solid rgba(110, 231, 183, 0.35);
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+      touch-action: manipulation;
+      transition: transform 0.1s ease, background 0.15s ease;
+    }
+
+    #saved-badge:active {
+      transform: scale(0.95);
+      background: #047857;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+
+    .hdr-btn {
+      padding: 5px 10px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      background: rgba(255, 255, 255, 0.08);
+      color: #e2e8f0;
+      touch-action: manipulation;
+      transition: background 0.15s ease, transform 0.1s ease;
+    }
+
+    .hdr-btn:active {
+      transform: scale(0.95);
+    }
+
+    .hdr-btn.reset-btn {
+      background: rgba(225, 29, 72, 0.2);
+      border-color: rgba(251, 113, 133, 0.35);
+      color: #fecdd3;
+    }
+
+    .hdr-btn.reset-confirm {
+      background: #e11d48;
+      border-color: #fb7185;
+      color: #ffffff;
+      font-weight: 800;
+    }
+
+    /* 2. Stage Area (Normal flow, no flex: 1, no vertical centering) */
+    #stage-area {
+      width: 100%;
+      padding: 6px 0 8px 0;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .row-section {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .row-label {
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      pointer-events: none;
+    }
+
+    .row-label.active-label {
+      font-size: 11px;
+      color: #fbbf24;
+      padding: 0 10px 6px 10px;
+    }
+
+    .row-label.readonly-label {
+      font-size: 10px;
+      color: #94a3b8;
+      padding: 0 10px 4px 10px;
+    }
+
+    .row-label.edit-label {
+      font-size: 10px;
+      color: #fbbf24;
+      padding: 0 10px 4px 10px;
+    }
+
+    .row-gap {
+      height: 8px;
+      width: 100%;
+    }
+
+    .card-row {
+      position: relative;
+      width: 100%;
+      overflow: hidden;
+      touch-action: none;
+    }
+
+    /* Playing Card Styling */
+    .playing-card {
+      position: absolute;
+      top: 4px;
+      background: #ffffff;
+      border: 1.5px solid #cbd5e1;
+      border-radius: 10px;
+      box-shadow: -3px 2px 8px rgba(0, 0, 0, 0.35);
+      opacity: 1;
+      touch-action: none;
+      cursor: grab;
+      overflow: hidden;
+      will-change: left, transform;
+    }
+
+    .playing-card.readonly-card {
+      cursor: default;
+      box-shadow: -2px 2px 6px rgba(0, 0, 0, 0.3);
+    }
+
+    .playing-card.animate-slot {
+      transition: left 140ms ease;
+    }
+
+    .playing-card.suit-red {
+      color: #dc2626;
+    }
+
+    .playing-card.suit-black {
+      color: #111827;
+    }
+
+    /* Actively dragged card: 100% opaque white, crisp full-contrast text */
+    .playing-card.is-dragging {
+      transition: none !important;
+      opacity: 1 !important;
+      background: #ffffff !important;
+      z-index: 100 !important;
+      transform: translateY(-6px) scale(1.03);
+      box-shadow: 0 14px 28px rgba(0, 0, 0, 0.55), 0 0 0 2px #fbbf24 !important;
+      cursor: grabbing;
+    }
+
+    .playing-card.is-dragging.suit-red {
+      color: #dc2626 !important;
+    }
+
+    .playing-card.is-dragging.suit-black {
+      color: #111827 !important;
+    }
+
+    .card-corner {
+      position: absolute;
+      top: 0;
+      left: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      line-height: 1;
+      pointer-events: none;
+    }
+
+    .card-rank {
+      font-weight: 800;
+      letter-spacing: -0.04em;
+    }
+
+    .card-rank.is-ten {
+      letter-spacing: -0.1em;
+    }
+
+    .card-suit {
+      margin-top: 2px;
+      line-height: 0.92;
+    }
+
+    .card-watermark {
+      position: absolute;
+      right: 10%;
+      bottom: 8%;
+      opacity: 0.14;
+      line-height: 1;
+      pointer-events: none;
+    }
+
+    /* 3. Navigation Bar (Normal flow directly below stage area) */
+    #nav-bar {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 10px;
+      width: 100%;
+    }
+
+    .nav-btn {
+      height: 44px;
+      padding: 0 14px;
+      border-radius: 10px;
+      border: none;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      touch-action: manipulation;
+      transition: transform 0.1s ease, opacity 0.15s ease, background 0.15s ease;
+    }
+
+    .nav-btn:active:not(:disabled) {
+      transform: scale(0.97);
+    }
+
+    .nav-btn:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+
+    #btn-back {
+      background: #1e293b;
+      color: #f8fafc;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      min-width: 84px;
+    }
+
+    #btn-next {
+      flex: 1;
+      background: #2563eb;
+      color: #ffffff;
+      box-shadow: 0 3px 10px rgba(37, 99, 235, 0.35);
+    }
+
+    #btn-next:hover {
+      background: #1d4ed8;
+    }
+
+    #btn-done {
+      background: #059669;
+      color: #ffffff;
+      min-width: 84px;
+      box-shadow: 0 3px 10px rgba(5, 150, 105, 0.35);
+    }
+
+    #btn-done:hover {
+      background: #047857;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    /* 4. Floating Email Preview Overlay (Upper-center so visible in tall iframes) */
+    #preview-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(2, 6, 23, 0.78);
+      z-index: 99998;
+    }
+
+    #preview-overlay {
+      position: fixed;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: min(92vw, 440px);
+      max-height: 80%;
+      z-index: 99999;
+      background: #0f172a;
+      border: 1px solid rgba(110, 231, 183, 0.4);
+      border-radius: 14px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .preview-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 10px 12px;
+      background: #020617;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .preview-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: #f8fafc;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    #btn-preview-x {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      background: rgba(255, 255, 255, 0.08);
+      color: #f8fafc;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .preview-body {
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      flex: 1;
+      min-height: 0;
+    }
+
+    #preview-textarea {
+      width: 100%;
+      height: 185px;
+      max-height: 45vh;
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      background: #020617;
+      color: #e2e8f0;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 11px;
+      line-height: 1.45;
+      resize: none;
+      outline: none;
+      touch-action: pan-y;
+      user-select: text;
+      -webkit-user-select: text;
+      overscroll-behavior: contain;
+    }
+
+    #preview-copy-status {
+      font-size: 12px;
+      font-weight: 700;
+      color: #6ee7b7;
+      text-align: center;
+      padding: 4px 8px;
+      border-radius: 6px;
+      background: rgba(6, 95, 70, 0.45);
+      border: 1px solid rgba(110, 231, 183, 0.3);
+    }
+
+    .preview-actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+      padding: 0 12px 12px 12px;
+    }
+
+    .preview-btn {
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      text-decoration: none;
+      border: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      touch-action: manipulation;
+    }
+
+    #btn-copy-text {
+      background: #fbbf24;
+      color: #0f172a;
+    }
+
+    #btn-send-email {
+      background: #059669;
+      color: #ffffff;
+    }
+
+    #btn-preview-close {
+      background: rgba(255, 255, 255, 0.12);
+      color: #f8fafc;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+    }
+
+    /* Hidden clipboard helper for iframe-safe execCommand('copy') */
+    #clipboard-helper {
+      position: fixed;
+      left: -9999px;
+      top: 0;
+      opacity: 0;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <!-- Main Application Wrapper (Strict Normal Document Flow) -->
+  <div id="app">
+    <!-- 1. Header Bar -->
+    <header id="header-bar">
+      <div class="header-left">
+        <span id="hand-title">Hand 1 / 30</span>
+        <span id="saved-badge" title="Double-tap to preview email payload">1 Hand</span>
+      </div>
+      <div class="header-right">
+        <button id="btn-undo" class="hdr-btn" type="button">Undo</button>
+        <button id="btn-reset" class="hdr-btn reset-btn" type="button">Reset</button>
+      </div>
+    </header>
+
+    <!-- 2. Card Stage Area -->
+    <main id="stage-area">
+      <!-- Read-Only Dealt Row (Shown only in Review / Edit Mode) -->
+      <section id="dealt-section" class="row-section hidden">
+        <div class="row-label readonly-label">DEALT ORDER (READ-ONLY)</div>
+        <div id="dealt-row" class="card-row"></div>
+        <div class="row-gap"></div>
+      </section>
+
+      <!-- Interactive Sorting Row -->
+      <section id="sorted-section" class="row-section">
+        <div id="sorted-label" class="row-label active-label">DRAG CARDS LEFT OR RIGHT TO SORT</div>
+        <div id="sorted-row" class="card-row"></div>
+      </section>
+    </main>
+
+    <!-- 3. Navigation Bar (Directly below cards in normal flow) -->
+    <nav id="nav-bar" aria-label="Hand Navigation">
+      <button id="btn-back" class="nav-btn" type="button" disabled>&larr; Back</button>
+      <button id="btn-next" class="nav-btn" type="button">Next &rarr;</button>
+      <button id="btn-done" class="nav-btn hidden" type="button">Done</button>
+    </nav>
+  </div>
+
+  <!-- 4. Floating Email Preview Overlay -->
+  <div id="preview-backdrop" class="hidden"></div>
+  <div id="preview-overlay" class="hidden" role="dialog" aria-modal="true" aria-labelledby="preview-dialog-title">
+    <div class="preview-header">
+      <span id="preview-dialog-title" class="preview-title">Email Payload Preview (jhusain@gmail.com)</span>
+      <button id="btn-preview-x" type="button" aria-label="Close Preview">&#x2715;</button>
+    </div>
+    <div class="preview-body">
+      <textarea id="preview-textarea" readonly aria-label="Email Payload Text"></textarea>
+      <div id="preview-copy-status" class="hidden">Copied!</div>
+    </div>
+    <div class="preview-actions">
+      <button id="btn-copy-text" class="preview-btn" type="button">Copy Text</button>
+      <a id="btn-send-email" class="preview-btn" href="#">Send Email</a>
+      <button id="btn-preview-close" class="preview-btn" type="button">Close</button>
+    </div>
+  </div>
+
+  <textarea id="clipboard-helper" aria-hidden="true"></textarea>
+
+  <script>
+    /**
+     * Card Sorting AI Trainer (v9)
+     * Engineered for Google Sites mobile iframes:
+     * - Pure top-aligned normal document flow (never relies on 100vh / fixed footer)
+     * - Deterministic Mulberry32 seeded deck dealer (DECK_SEED = 20261119)
+     * - Guaranteed width-driven card sizing (never 0px)
+     * - Smooth 100% opaque in-place drag-and-drop via Pointer Events
+     * - 4-layer persistence (localStorage, sessionStorage, window.name, document.cookie)
+     * - Floating Email Preview Overlay (?debug or double-tap on green badge)
+     */
+    (function () {
+      'use strict';
+
+      // --- CONSTANTS ---
+      const DECK_SEED = 20261119;
+      const STATE_VERSION = 9;
+      const TARGET_HANDS = 30;
+      const HAND_SIZE = 8;
+      const TARGET_EMAIL = 'jhusain@gmail.com';
+      const STORAGE_KEY = 'card_sorter_state_v9';
+      const WINDOW_NAME_PREFIX = 'CARD_SORTER_V9:';
+      const COOKIE_NAME = 'card_sorter_v9';
+
+      const RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+      const SUITS = ['S', 'H', 'D', 'C'];
+      const SUIT_INFO = {
+        S: { symbol: '♠', color: 'black' },
+        H: { symbol: '♥', color: 'red' },
+        D: { symbol: '♦', color: 'red' },
+        C: { symbol: '♣', color: 'black' }
+      };
+
+      // Build canonical 52-card deck and fast validation Set
+      const BASE_DECK = [];
+      const VALID_CARDS = new Set();
+      for (let s = 0; s < SUITS.length; s++) {
+        for (let r = 0; r < RANKS.length; r++) {
+          const code = RANKS[r] + SUITS[s];
+          BASE_DECK.push(code);
+          VALID_CARDS.add(code);
+        }
+      }
+
+      // --- DETERMINISTIC SEEDED DEALER ---
+
+      /**
+       * Mulberry32 deterministic 32-bit PRNG.
+       */
+      function mulberry32(seed) {
+        let a = seed >>> 0;
+        return function () {
+          a = (a + 0x6D2B79F5) >>> 0;
+          let t = Math.imul(a ^ (a >>> 15), 1 | a);
+          t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+          return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        };
+      }
+
+      /**
+       * Deterministically deal 8 cards for a 0-based handIndex.
+       */
+      function dealHandForIndex(handIndex) {
+        const rng = mulberry32(DECK_SEED + handIndex * 7919);
+        const deck = BASE_DECK.slice();
+        for (let i = deck.length - 1; i > 0; i--) {
+          const j = Math.floor(rng() * (i + 1));
+          const tmp = deck[i];
+          deck[i] = deck[j];
+          deck[j] = tmp;
+        }
+        return deck.slice(0, HAND_SIZE);
+      }
+
+      function parseCard(code) {
+        const suit = code.slice(-1);
+        const rank = code.slice(0, -1);
+        const info = SUIT_INFO[suit] || SUIT_INFO.S;
+        return { code: code, rank: rank, suit: suit, symbol: info.symbol, color: info.color };
+      }
+
+      // --- APPLICATION STATE ---
+      let state = {
+        version: STATE_VERSION,
+        currentIndex: 0,
+        hands: []
+      };
+
+      // Computed card geometry
+      let geom = {
+        padLeft: 8,
+        stepX: 44,
+        cardW: 100,
+        cardH: 175
+      };
+
+      // Active drag state
+      let dragState = null;
+
+      // Two-tap Reset confirmation state
+      let resetConfirmTimer = null;
+      let isResetConfirmArmed = false;
+
+      // DOM elements
+      const handTitleEl = document.getElementById('hand-title');
+      const savedBadgeEl = document.getElementById('saved-badge');
+      const btnUndo = document.getElementById('btn-undo');
+      const btnReset = document.getElementById('btn-reset');
+
+      const dealtSectionEl = document.getElementById('dealt-section');
+      const dealtRowEl = document.getElementById('dealt-row');
+      const sortedLabelEl = document.getElementById('sorted-label');
+      const sortedRowEl = document.getElementById('sorted-row');
+
+      const btnBack = document.getElementById('btn-back');
+      const btnNext = document.getElementById('btn-next');
+      const btnDone = document.getElementById('btn-done');
+
+      const previewBackdropEl = document.getElementById('preview-backdrop');
+      const previewOverlayEl = document.getElementById('preview-overlay');
+      const previewTextareaEl = document.getElementById('preview-textarea');
+      const previewCopyStatusEl = document.getElementById('preview-copy-status');
+      const btnPreviewX = document.getElementById('btn-preview-x');
+      const btnCopyText = document.getElementById('btn-copy-text');
+      const btnSendEmail = document.getElementById('btn-send-email');
+      const btnPreviewClose = document.getElementById('btn-preview-close');
+      const clipboardHelperEl = document.getElementById('clipboard-helper');
+
+      // --- STATE VALIDATION & CREATION ---
+
+      function isValidCardList(arr) {
+        if (!Array.isArray(arr) || arr.length !== HAND_SIZE) return false;
+        const seen = new Set();
+        for (let i = 0; i < arr.length; i++) {
+          const code = arr[i];
+          if (typeof code !== 'string' || !VALID_CARDS.has(code) || seen.has(code)) {
+            return false;
+          }
+          seen.add(code);
+        }
+        return true;
+      }
+
+      function isValidHandRecord(hand) {
+        if (!hand || typeof hand !== 'object') return false;
+        if (!isValidCardList(hand.dealt) || !isValidCardList(hand.sorted)) return false;
+        const dealtSet = new Set(hand.dealt);
+        for (let i = 0; i < hand.sorted.length; i++) {
+          if (!dealtSet.has(hand.sorted[i])) return false;
+        }
+        return true;
+      }
+
+      function validateState(obj) {
+        if (!obj || typeof obj !== 'object') return null;
+        if (obj.version !== STATE_VERSION) return null;
+        if (!Array.isArray(obj.hands) || obj.hands.length === 0) return null;
+        if (typeof obj.currentIndex !== 'number' || !Number.isFinite(obj.currentIndex)) return null;
+
+        const cleanHands = [];
+        for (let i = 0; i < obj.hands.length; i++) {
+          if (!isValidHandRecord(obj.hands[i])) return null;
+          cleanHands.push({
+            dealt: obj.hands[i].dealt.slice(),
+            sorted: obj.hands[i].sorted.slice(),
+            completed: Boolean(obj.hands[i].completed)
+          });
+        }
+
+        const clampedIdx = Math.max(0, Math.min(cleanHands.length - 1, Math.floor(obj.currentIndex)));
+        return {
+          version: STATE_VERSION,
+          currentIndex: clampedIdx,
+          hands: cleanHands
+        };
+      }
+
+      function createFreshState() {
+        const firstDealt = dealHandForIndex(0);
+        return {
+          version: STATE_VERSION,
+          currentIndex: 0,
+          hands: [
+            {
+              dealt: firstDealt.slice(),
+              sorted: firstDealt.slice(),
+              completed: false
+            }
+          ]
+        };
+      }
+
+      // --- 4-LAYER PERSISTENCE ---
+
+      /**
+       * Compact cookie encoding:
+       * Because dealt hands are deterministic from dealHandForIndex(i), we only store:
+       * version|currentIndex|<0/1><16-char-sorted>.<0/1><16-char-sorted>...
+       * where '10' is encoded as 'T'.
+       */
+      function encodeCompactCookie(st) {
+        const parts = st.hands.map(function (h) {
+          const flag = h.completed ? '1' : '0';
+          const cardsStr = h.sorted.map(function (code) {
+            return code.indexOf('10') === 0 ? ('T' + code.slice(2)) : code;
+          }).join('');
+          return flag + cardsStr;
+        });
+        return st.version + '|' + st.currentIndex + '|' + parts.join('.');
+      }
+
+      function decodeCompactCookie(raw) {
+        if (typeof raw !== 'string' || !raw) return null;
+        const segments = raw.split('|');
+        if (segments.length !== 3) return null;
+        const ver = parseInt(segments[0], 10);
+        const curIdx = parseInt(segments[1], 10);
+        if (ver !== STATE_VERSION || isNaN(curIdx)) return null;
+
+        const handTokens = segments[2].split('.');
+        if (handTokens.length === 0) return null;
+
+        const hands = [];
+        for (let i = 0; i < handTokens.length; i++) {
+          const token = handTokens[i];
+          if (token.length !== 1 + HAND_SIZE * 2) return null;
+          const completed = token.charAt(0) === '1';
+          const sorted = [];
+          for (let c = 1; c < token.length; c += 2) {
+            const rankChar = token.charAt(c);
+            const suitChar = token.charAt(c + 1);
+            sorted.push((rankChar === 'T' ? '10' : rankChar) + suitChar);
+          }
+          const dealt = dealHandForIndex(i);
+          hands.push({ dealt: dealt, sorted: sorted, completed: completed });
+        }
+
+        return validateState({
+          version: ver,
+          currentIndex: curIdx,
+          hands: hands
+        });
+      }
+
+      function readCookie(name) {
+        const prefix = name + '=';
+        const items = document.cookie ? document.cookie.split(';') : [];
+        for (let i = 0; i < items.length; i++) {
+          const item = items[i].trim();
+          if (item.indexOf(prefix) === 0) {
+            return decodeURIComponent(item.slice(prefix.length));
+          }
+        }
+        return null;
+      }
+
+      function saveState() {
+        const json = JSON.stringify(state);
+
+        // Layer 1: localStorage
+        try {
+          window.localStorage.setItem(STORAGE_KEY, json);
+        } catch (e) {}
+
+        // Layer 2: sessionStorage
+        try {
+          window.sessionStorage.setItem(STORAGE_KEY, json);
+        } catch (e) {}
+
+        // Layer 3: window.name
+        try {
+          window.name = WINDOW_NAME_PREFIX + json;
+        } catch (e) {}
+
+        // Layer 4: document.cookie
+        try {
+          const encoded = encodeURIComponent(encodeCompactCookie(state));
+          if (encoded.length < 3800) {
+            document.cookie = COOKIE_NAME + '=' + encoded + '; max-age=31536000; path=/; SameSite=Lax';
+          }
+        } catch (e) {}
+      }
+
+      function clearAllStorage() {
+        try { window.localStorage.removeItem(STORAGE_KEY); } catch (e) {}
+        try { window.sessionStorage.removeItem(STORAGE_KEY); } catch (e) {}
+        try {
+          if (typeof window.name === 'string' && window.name.indexOf(WINDOW_NAME_PREFIX) === 0) {
+            window.name = '';
+          }
+        } catch (e) {}
+        try {
+          document.cookie = COOKIE_NAME + '=; max-age=0; path=/; SameSite=Lax';
+        } catch (e) {}
+      }
+
+      function loadState() {
+        let loaded = null;
+
+        // 1. localStorage
+        if (!loaded) {
+          try {
+            const raw = window.localStorage.getItem(STORAGE_KEY);
+            if (raw) loaded = validateState(JSON.parse(raw));
+          } catch (e) {}
+        }
+
+        // 2. sessionStorage
+        if (!loaded) {
+          try {
+            const raw = window.sessionStorage.getItem(STORAGE_KEY);
+            if (raw) loaded = validateState(JSON.parse(raw));
+          } catch (e) {}
+        }
+
+        // 3. window.name
+        if (!loaded) {
+          try {
+            if (typeof window.name === 'string' && window.name.indexOf(WINDOW_NAME_PREFIX) === 0) {
+              const raw = window.name.slice(WINDOW_NAME_PREFIX.length);
+              if (raw) loaded = validateState(JSON.parse(raw));
+            }
+          } catch (e) {}
+        }
+
+        // 4. document.cookie
+        if (!loaded) {
+          try {
+            const raw = readCookie(COOKIE_NAME);
+            if (raw) loaded = decodeCompactCookie(raw);
+          } catch (e) {}
+        }
+
+        state = loaded || createFreshState();
+        saveState();
+      }
+
+      // --- HELPERS ---
+
+      function isReviewMode() {
+        return state.currentIndex < state.hands.length - 1;
+      }
+
+      function getCurrentHand() {
+        return state.hands[state.currentIndex];
+      }
+
+      function getCompletedCount() {
+        let count = 0;
+        for (let i = 0; i < state.hands.length; i++) {
+          if (state.hands[i].completed) count++;
+        }
+        return count;
+      }
+
+      // --- GUARANTEED WIDTH-DRIVEN CARD SIZING ---
+
+      function computeGeometry() {
+        const W = Math.max(300, document.documentElement.clientWidth || window.innerWidth || 360);
+        const H = window.innerHeight || 600;
+        const isLandscape = W > H;
+        const reviewMode = isReviewMode();
+
+        const padLeft = 8;
+        const stepX = Math.floor((W - padLeft) / 8);
+        const cardW = Math.max(84, Math.min(200, Math.round(stepX * 2.25)));
+
+        let cardH;
+        if (reviewMode) {
+          cardH = isLandscape ? 100 : 120;
+        } else {
+          cardH = isLandscape
+            ? Math.max(135, Math.min(185, Math.round(cardW * 1.25)))
+            : Math.max(165, Math.min(225, Math.round(cardW * 1.45)));
+        }
+
+        geom = {
+          padLeft: padLeft,
+          stepX: stepX,
+          cardW: cardW,
+          cardH: cardH
+        };
+      }
+
+      // --- RENDERING ---
+
+      function createCardElement(cardCode, index, interactive) {
+        const card = parseCard(cardCode);
+        const el = document.createElement('div');
+        el.className = 'playing-card ' + (card.color === 'red' ? 'suit-red' : 'suit-black') + (interactive ? ' animate-slot' : ' readonly-card');
+        el.style.left = (geom.padLeft + index * geom.stepX) + 'px';
+        el.style.width = geom.cardW + 'px';
+        el.style.height = geom.cardH + 'px';
+        el.style.zIndex = String(index + 1);
+        el.dataset.code = cardCode;
+        el.dataset.index = String(index);
+
+        const baseFont = Math.max(18, Math.min(34, Math.floor(geom.stepX * 0.62)));
+        const rankFont = card.rank === '10' ? Math.max(14, Math.round(baseFont * 0.8)) : baseFont;
+        const suitFont = baseFont;
+        const watermarkFont = Math.max(28, Math.min(82, Math.round(geom.cardW * 0.52)));
+        const cornerW = Math.max(20, geom.stepX - 2);
+
+        el.innerHTML =
+          '<div class="card-corner" style="width:' + cornerW + 'px; padding:6px 2px 0 5px;">' +
+            '<span class="card-rank' + (card.rank === '10' ? ' is-ten' : '') + '" style="font-size:' + rankFont + 'px;">' + card.rank + '</span>' +
+            '<span class="card-suit" style="font-size:' + suitFont + 'px;">' + card.symbol + '</span>' +
+          '</div>' +
+          '<div class="card-watermark" style="font-size:' + watermarkFont + 'px;">' + card.symbol + '</div>';
+
+        if (interactive) {
+          el.addEventListener('pointerdown', onCardPointerDown);
+        }
+        return el;
+      }
+
+      function render() {
+        if (!state.hands || state.hands.length === 0) {
+          state = createFreshState();
+          saveState();
+        }
+
+        computeGeometry();
+
+        const reviewMode = isReviewMode();
+        const hand = getCurrentHand();
+        const handNum = state.currentIndex + 1;
+        const totalReached = state.hands.length;
+        const completedCount = getCompletedCount();
+
+        // 1. Update Header
+        handTitleEl.textContent = handNum <= TARGET_HANDS
+          ? ('Hand ' + handNum + ' / ' + TARGET_HANDS)
+          : ('Hand ' + handNum + ' (30+)');
+
+        const badgeCount = Math.max(1, totalReached);
+        savedBadgeEl.textContent = badgeCount + (badgeCount === 1 ? ' Hand' : ' Hands');
+
+        // 2. Update Stage Rows
+        const rowHeightPx = (geom.cardH + 8) + 'px';
+
+        if (reviewMode) {
+          dealtSectionEl.classList.remove('hidden');
+          dealtRowEl.style.height = rowHeightPx;
+          dealtRowEl.innerHTML = '';
+          for (let i = 0; i < hand.dealt.length; i++) {
+            dealtRowEl.appendChild(createCardElement(hand.dealt[i], i, false));
+          }
+
+          sortedLabelEl.textContent = 'YOUR SORTED ORDER (DRAG TO EDIT)';
+          sortedLabelEl.className = 'row-label edit-label';
+        } else {
+          dealtSectionEl.classList.add('hidden');
+          dealtRowEl.innerHTML = '';
+          sortedLabelEl.textContent = 'DRAG CARDS LEFT OR RIGHT TO SORT';
+          sortedLabelEl.className = 'row-label active-label';
+        }
+
+        sortedRowEl.style.height = rowHeightPx;
+        sortedRowEl.innerHTML = '';
+        for (let i = 0; i < hand.sorted.length; i++) {
+          sortedRowEl.appendChild(createCardElement(hand.sorted[i], i, true));
+        }
+
+        // 3. Update Navigation Bar
+        btnBack.disabled = state.currentIndex === 0;
+        const showDone = completedCount >= TARGET_HANDS || state.currentIndex >= (TARGET_HANDS - 1) || totalReached >= TARGET_HANDS;
+        if (showDone) {
+          btnDone.classList.remove('hidden');
+        } else {
+          btnDone.classList.add('hidden');
+        }
+      }
+
+      // --- SMOOTH IN-PLACE DRAG-AND-DROP (NO GHOST, 100% OPAQUE) ---
+
+      function onCardPointerDown(event) {
+        if (dragState) return;
+        if (event.button !== undefined && event.button !== 0) return;
+
+        event.preventDefault();
+        const cardEl = event.currentTarget;
+        const startIdx = parseInt(cardEl.dataset.index, 10);
+        if (isNaN(startIdx)) return;
+
+        const code = cardEl.dataset.code;
+        const startLeft = geom.padLeft + startIdx * geom.stepX;
+
+        try {
+          cardEl.setPointerCapture(event.pointerId);
+        } catch (e) {}
+
+        cardEl.classList.remove('animate-slot');
+        cardEl.classList.add('is-dragging');
+
+        dragState = {
+          pointerId: event.pointerId,
+          cardEl: cardEl,
+          code: code,
+          currentIndex: startIdx,
+          startPointerX: event.clientX,
+          startLeft: startLeft
+        };
+
+        window.addEventListener('pointermove', onCardPointerMove, { passive: false });
+        window.addEventListener('pointerup', onCardPointerEnd);
+        window.addEventListener('pointercancel', onCardPointerEnd);
+      }
+
+      function onCardPointerMove(event) {
+        if (!dragState || event.pointerId !== dragState.pointerId) return;
+        event.preventDefault();
+
+        const dx = event.clientX - dragState.startPointerX;
+        const dragLeft = dragState.startLeft + dx;
+        dragState.cardEl.style.left = dragLeft + 'px';
+
+        // Determine target slot as dragged card crosses horizontal thresholds
+        const rawSlot = Math.round((dragLeft - geom.padLeft) / geom.stepX);
+        const targetIndex = Math.max(0, Math.min(HAND_SIZE - 1, rawSlot));
+
+        if (targetIndex !== dragState.currentIndex) {
+          const hand = getCurrentHand();
+          const oldIdx = hand.sorted.indexOf(dragState.code);
+          if (oldIdx !== -1) {
+            hand.sorted.splice(oldIdx, 1);
+            hand.sorted.splice(targetIndex, 0, dragState.code);
+          }
+          dragState.currentIndex = targetIndex;
+
+          // Smoothly slide the other 7 cards into their new slots
+          const children = sortedRowEl.children;
+          for (let i = 0; i < children.length; i++) {
+            const el = children[i];
+            const c = el.dataset.code;
+            const slotIdx = hand.sorted.indexOf(c);
+            el.dataset.index = String(slotIdx);
+            if (c !== dragState.code) {
+              el.style.left = (geom.padLeft + slotIdx * geom.stepX) + 'px';
+              el.style.zIndex = String(slotIdx + 1);
+            }
+          }
+        }
+      }
+
+      function onCardPointerEnd(event) {
+        if (!dragState || event.pointerId !== dragState.pointerId) return;
+
+        window.removeEventListener('pointermove', onCardPointerMove);
+        window.removeEventListener('pointerup', onCardPointerEnd);
+        window.removeEventListener('pointercancel', onCardPointerEnd);
+
+        const finished = dragState;
+        dragState = null;
+
+        try {
+          if (finished.cardEl.hasPointerCapture && finished.cardEl.hasPointerCapture(finished.pointerId)) {
+            finished.cardEl.releasePointerCapture(finished.pointerId);
+          }
+        } catch (e) {}
+
+        // Snap dragged card into its final slot and save immediately
+        finished.cardEl.classList.remove('is-dragging');
+        finished.cardEl.classList.add('animate-slot');
+        finished.cardEl.style.left = (geom.padLeft + finished.currentIndex * geom.stepX) + 'px';
+        finished.cardEl.style.zIndex = String(finished.currentIndex + 1);
+
+        saveState();
+
+        // Re-sync DOM z-order cleanly after snap animation
+        setTimeout(function () {
+          if (!dragState) render();
+        }, 150);
+      }
+
+      // --- EMAIL PAYLOAD & FLOATING PREVIEW OVERLAY ---
+
+      function buildEmailBody() {
+        const lines = [];
+        for (let i = 0; i < state.hands.length; i++) {
+          const h = state.hands[i];
+          lines.push(
+            'Hand ' + (i + 1) + ': Dealt [' + h.dealt.join(', ') + '] -> Sorted [' + h.sorted.join(', ') + ']'
+          );
+        }
+        return lines.join('\n');
+      }
+
+      function buildMailtoUrl(bodyText) {
+        const subject = encodeURIComponent('Card Sorting Data (' + state.hands.length + ' Hands)');
+        return 'mailto:' + TARGET_EMAIL + '?subject=' + subject + '&body=' + encodeURIComponent(bodyText);
+      }
+
+      function openPreviewOverlay() {
+        const bodyText = buildEmailBody();
+        previewTextareaEl.value = bodyText;
+        previewTextareaEl.scrollTop = 0;
+        btnSendEmail.href = buildMailtoUrl(bodyText);
+        previewCopyStatusEl.classList.add('hidden');
+        previewBackdropEl.classList.remove('hidden');
+        previewOverlayEl.classList.remove('hidden');
+      }
+
+      function closePreviewOverlay() {
+        previewBackdropEl.classList.add('hidden');
+        previewOverlayEl.classList.add('hidden');
+      }
+
+      function copyPayloadToClipboard() {
+        const text = previewTextareaEl.value || buildEmailBody();
+        clipboardHelperEl.value = text;
+        clipboardHelperEl.select();
+        clipboardHelperEl.setSelectionRange(0, 999999);
+        let ok = false;
+        try {
+          ok = document.execCommand('copy');
+        } catch (e) {}
+        if (ok) {
+          previewCopyStatusEl.classList.remove('hidden');
+          setTimeout(function () {
+            previewCopyStatusEl.classList.add('hidden');
+          }, 2200);
+        }
+      }
+
+      function isDebugParamPresent() {
+        try {
+          if (new URLSearchParams(window.location.search).has('debug')) return true;
+          if (window.location.hash && window.location.hash.indexOf('?') !== -1) {
+            const hashQuery = window.location.hash.split('?')[1];
+            if (new URLSearchParams(hashQuery).has('debug')) return true;
+          }
+          if (document.referrer) {
+            const refUrl = new URL(document.referrer);
+            if (refUrl.searchParams.has('debug')) return true;
+          }
+        } catch (e) {}
+        return false;
+      }
+
+      // --- BUTTON & GESTURE HANDLERS ---
+
+      // Reliable mobile + desktop double-tap detector on green saved-hands pill (within 400ms)
+      let lastBadgeTap = 0;
+      savedBadgeEl.addEventListener('pointerdown', function (event) {
+        if (event.button !== undefined && event.button !== 0) return;
+        const now = Date.now();
+        if (now - lastBadgeTap <= 400) {
+          lastBadgeTap = 0;
+          event.preventDefault();
+          openPreviewOverlay();
+        } else {
+          lastBadgeTap = now;
+        }
+      });
+
+      // Undo button: resets current hand's sorted order back to its dealt order
+      btnUndo.addEventListener('click', function () {
+        const hand = getCurrentHand();
+        hand.sorted = hand.dealt.slice();
+        saveState();
+        render();
+      });
+
+      // Reset button: inline two-tap confirmation ("Reset" -> "Sure?")
+      function disarmResetConfirm() {
+        isResetConfirmArmed = false;
+        if (resetConfirmTimer) {
+          clearTimeout(resetConfirmTimer);
+          resetConfirmTimer = null;
+        }
+        btnReset.textContent = 'Reset';
+        btnReset.classList.remove('reset-confirm');
+      }
+
+      btnReset.addEventListener('click', function () {
+        if (!isResetConfirmArmed) {
+          isResetConfirmArmed = true;
+          btnReset.textContent = 'Sure?';
+          btnReset.classList.add('reset-confirm');
+          resetConfirmTimer = setTimeout(disarmResetConfirm, 3000);
+        } else {
+          disarmResetConfirm();
+          clearAllStorage();
+          state = createFreshState();
+          saveState();
+          closePreviewOverlay();
+          render();
+        }
+      });
+
+      // Back button: navigate to previous hand (enters Review / Edit Mode)
+      btnBack.addEventListener('click', function () {
+        if (state.currentIndex > 0) {
+          state.currentIndex -= 1;
+          saveState();
+          render();
+        }
+      });
+
+      // Next button: advance forward or deal next deterministic hand
+      btnNext.addEventListener('click', function () {
+        const hand = getCurrentHand();
+        hand.completed = true;
+
+        if (isReviewMode()) {
+          state.currentIndex += 1;
+          saveState();
+          render();
+          return;
+        }
+
+        const nextIdx = state.hands.length;
+        const nextDealt = dealHandForIndex(nextIdx);
+        state.hands.push({
+          dealt: nextDealt.slice(),
+          sorted: nextDealt.slice(),
+          completed: false
+        });
+        state.currentIndex = nextIdx;
+        saveState();
+        render();
+      });
+
+      // Done button: mark current hand completed, trigger mailto:, and open Floating Preview Overlay
+      btnDone.addEventListener('click', function () {
+        getCurrentHand().completed = true;
+        saveState();
+        render();
+
+        const bodyText = buildEmailBody();
+        const mailtoUrl = buildMailtoUrl(bodyText);
+        openPreviewOverlay();
+
+        try {
+          window.location.href = mailtoUrl;
+        } catch (e) {}
+      });
+
+      // Floating Email Preview Overlay controls
+      previewBackdropEl.addEventListener('click', closePreviewOverlay);
+      btnPreviewX.addEventListener('click', closePreviewOverlay);
+      btnPreviewClose.addEventListener('click', closePreviewOverlay);
+      btnCopyText.addEventListener('click', copyPayloadToClipboard);
+
+      // --- LIFECYCLE & RESPONSIVE LISTENERS ---
+
+      let resizeTimer = null;
+      function handleViewportChange() {
+        if (resizeTimer) clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(function () {
+          if (!dragState) render();
+        }, 40);
+      }
+
+      window.addEventListener('resize', handleViewportChange);
+      window.addEventListener('orientationchange', function () {
+        setTimeout(handleViewportChange, 60);
+        setTimeout(handleViewportChange, 250);
+      });
+
+      document.addEventListener('visibilitychange', function () {
+        if (document.visibilityState === 'hidden') saveState();
+      });
+      window.addEventListener('pagehide', saveState);
+
+      // --- BOOTSTRAP ---
+
+      function init() {
+        loadState();
+        render();
+        if (isDebugParamPresent()) {
+          setTimeout(openPreviewOverlay, 80);
+        }
+      }
+
+      // Run synchronously at end of body and also ensure DOMContentLoaded safety
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+      } else {
+        init();
+      }
+    })();
+  </script>
+</body>
+</html>
